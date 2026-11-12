@@ -1,6 +1,6 @@
 // Set the Firebase project configuration below before publishing.
 // Realtime Database must be enabled and secured with suitable authentication/rules for production.
-const firebaseConfig = null;
+{config}
 const $ = id => document.getElementById(id);
 let db, room, role, unsubscribe;
 $('connect').onclick = async () => {
