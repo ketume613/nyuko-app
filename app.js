@@ -1,6 +1,15 @@
 // Set the Firebase project configuration below before publishing.
 // Realtime Database must be enabled and secured with suitable authentication/rules for production.
-{config}
+const firebaseConfig = {
+  apiKey: "AIzaSyCLzuSbh1QOTeGdkHYAlm_sXSRiex-5iGw",
+  authDomain: "nyuko-app-f10b6.firebaseapp.com",
+  databaseURL: "https://nyuko-app-f10b6-default-rtdb.firebaseio.com",
+  projectId: "nyuko-app-f10b6",
+  storageBucket: "nyuko-app-f10b6.firebasestorage.app",
+  messagingSenderId: "970608663097",
+  appId: "1:970608663097:web:12a6ff870ca16878298be8",
+  measurementId: "G-K1V36J9XY5"
+};
 const $ = id => document.getElementById(id);
 let db, room, role, unsubscribe;
 $('connect').onclick = async () => {
