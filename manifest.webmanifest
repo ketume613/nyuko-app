@@ -1,0 +1,10 @@
+{
+  "name": "入庫通知",
+  "short_name": "入庫通知",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f2f5f8",
+  "theme_color": "#1669b2",
+  "lang": "ja"
+}
