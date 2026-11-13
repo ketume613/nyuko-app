@@ -5,62 +5,116 @@ const firebaseConfig = {
   projectId: "nyuko-app-f10b6",
   storageBucket: "nyuko-app-f10b6.firebasestorage.app",
   messagingSenderId: "970608663097",
-  appId: "1:970608663097:web:12a6ff870ca16878298be8",
-  measurementId: "G-K1V36J9XY5"
+  appId: "1:970608663097:web:12a6ff870ca16878298be8"
 };
 const $ = id => document.getElementById(id);
-let db, room, role, unsubscribe;
-$('connect').onclick = async () => {
-  room = $('room').value.trim();
-  if (!/^[a-zA-Z0-9_-]{12,80}$/.test(room)) {
-    $('status').textContent = '共有コードは英数字・ハイフン・下線で12〜80文字にしてください'; return;
-  }
-  $('status').textContent = '接続中…';
-  try {
-    const [{initializeApp},{getDatabase,ref,set,onValue},{getAuth,signInAnonymously}] = await Promise.all([
-      import('https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js'),
-      import('https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js'),
-      import('https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js')
-    ]);
-    const app = initializeApp(firebaseConfig);
-    await signInAnonymously(getAuth(app));
-    db = {database:getDatabase(app),ref,set,onValue};
-    $('modebox').hidden = false;
-    $('status').textContent = '認証完了。役割を選んでください';
-  } catch(e) {
-    console.error(e);
-    $('status').textContent = '接続エラー：' + (e.code || e.message || '通信を確認してください');
-  }
-};
+let db, room = '', role = '', unsubscribe = null, connecting = false, sending = false;
+const savedRoom = localStorage.getItem('nyuko.room') || '';
+const savedRole = localStorage.getItem('nyuko.role') || '';
+$('room').value = savedRoom;
+function status(message) { $('status').textContent = message; }
+function stopListening() { if (unsubscribe) { unsubscribe(); unsubscribe = null; } }
+function showNotice(timestamp) {
+  $('time').textContent = new Date(timestamp || Date.now()).toLocaleString('ja-JP');
+  $('notice').style.display = 'flex';
+  if (navigator.vibrate) navigator.vibrate([300,150,300]);
+}
 function selectRole(next) {
-  role=next;
-  $('modebox').hidden=true;
-  $('sender').hidden=role!=='sender';
-  $('receiver').hidden=role!=='receiver';
-  $('status').textContent=role==='sender'?'送信側':'受信側：通知待ち';
-  if(unsubscribe) unsubscribe();
-  if(role==='receiver') {
-    let initial=true,last=null;
-    unsubscribe=db.onValue(db.ref(db.database,'rooms/'+room+'/event'), snapshot=>{
-      const value=snapshot.val();
-      if(initial){initial=false;last=value?.id??null;return;}
-      if(value?.id && value.id!==last){last=value.id;showNotice(value.timestamp);}
-    }, e=>{console.error(e);$('status').textContent='受信エラー：'+(e.code||'権限を確認');});
+  if (!db) return;
+  stopListening();
+  role = next;
+  localStorage.setItem('nyuko.role', role);
+  $('modebox').hidden = true;
+  $('sender').hidden = role !== 'sender';
+  $('receiver').hidden = role !== 'receiver';
+  status(role === 'sender' ? '送信側：接続済み' : '受信側：接続中…');
+  if (role !== 'receiver') return;
+  let initial = true, last = null;
+  unsubscribe = db.onValue(db.ref(db.database, 'rooms/' + room + '/event'), snapshot => {
+    const value = snapshot.val();
+    if (initial) {
+      initial = false;
+      last = value?.id ?? null;
+      status('受信側：通知待ち（接続済み）');
+      return;
+    }
+    if (value?.id && value.id !== last) {
+      last = value.id;
+      status('受信側：新しい入庫通知を受信');
+      showNotice(value.timestamp);
+    }
+  }, error => {
+    console.error(error);
+    status('受信エラー：' + (error.code || '通信・権限を確認してください'));
+  });
+}
+async function connect() {
+  if (connecting) return;
+  const nextRoom = $('room').value.trim();
+  if (!/^[a-zA-Z0-9_-]{12,80}$/.test(nextRoom)) {
+    status('共有コードは英数字・ハイフン・下線で12〜80文字にしてください');
+    return;
+  }
+  connecting = true;
+  $('connect').disabled = true;
+  status('Firebaseに接続中…');
+  try {
+    if (!db) {
+      const [{initializeApp},{getDatabase,ref,set,onValue},{getAuth,signInAnonymously}] = await Promise.all([
+        import('https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js'),
+        import('https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js'),
+        import('https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js')
+      ]);
+      const app = initializeApp(firebaseConfig);
+      await signInAnonymously(getAuth(app));
+      db = {database:getDatabase(app),ref,set,onValue};
+    }
+    room = nextRoom;
+    localStorage.setItem('nyuko.room', room);
+    $('modebox').hidden = false;
+    $('sender').hidden = true;
+    $('receiver').hidden = true;
+    stopListening();
+    status('接続済み：役割を選んでください');
+    if (savedRole === 'sender' || savedRole === 'receiver') selectRole(savedRole);
+  } catch (error) {
+    console.error(error);
+    status('接続エラー：' + (error.code || error.message || '通信を確認してください'));
+  } finally {
+    connecting = false;
+    $('connect').disabled = false;
   }
 }
-$('asSender').onclick=()=>selectRole('sender');
-$('asReceiver').onclick=()=>selectRole('receiver');
-$('send').onclick=async()=>{
+$('connect').onclick = connect;
+$('asSender').onclick = () => selectRole('sender');
+$('asReceiver').onclick = () => selectRole('receiver');
+$('send').onclick = async () => {
+  if (!db || !room || sending) return;
+  sending = true;
+  $('send').disabled = true;
+  $('sent').textContent = '送信中…';
   try {
-    const timestamp=Date.now();
-    await db.set(db.ref(db.database,'rooms/'+room+'/event'),{id:crypto.randomUUID(),timestamp});
-    $('sent').textContent='送信しました：'+new Date(timestamp).toLocaleTimeString('ja-JP');
-  } catch(e){console.error(e);$('sent').textContent='送信エラー：'+(e.code||e.message||'不明');}
+    const timestamp = Date.now();
+    const id = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : String(timestamp) + '-' + Math.random().toString(36).slice(2);
+    await db.set(db.ref(db.database, 'rooms/' + room + '/event'), {id, timestamp});
+    $('sent').textContent = '送信完了：' + new Date(timestamp).toLocaleTimeString('ja-JP');
+  } catch (error) {
+    console.error(error);
+    $('sent').textContent = '送信エラー：' + (error.code || error.message || '通信を確認してください');
+  } finally {
+    sending = false;
+    $('send').disabled = false;
+  }
 };
-function showNotice(timestamp){
-  $('time').textContent=new Date(timestamp||Date.now()).toLocaleString('ja-JP');
-  $('notice').style.display='flex';
-  if(navigator.vibrate)navigator.vibrate([300,150,300]);
-}
-$('test').onclick=()=>showNotice(Date.now());
-$('ack').onclick=()=>{$('notice').style.display='none';};
+$('test').onclick = () => showNotice(Date.now());
+$('ack').onclick = () => { $('notice').style.display = 'none'; status('受信側：通知待ち（確認済み）'); };
+$('changeRole').onclick = () => {
+  stopListening();
+  localStorage.removeItem('nyuko.role');
+  role = '';
+  $('sender').hidden = true;
+  $('receiver').hidden = true;
+  $('modebox').hidden = false;
+  status('役割を選んでください');
+};
+if (savedRoom) connect();
