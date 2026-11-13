@@ -54,6 +54,8 @@ jobs:
           include ':app'
           EOF
 
+          printf 'android.useAndroidX=true\n' > android/gradle.properties
+
           cat > android/build.gradle <<'EOF'
           plugins {
               id 'com.android.application' version '8.7.3' apply false
