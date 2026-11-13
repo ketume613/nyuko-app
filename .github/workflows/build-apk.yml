@@ -80,8 +80,8 @@ jobs:
                   applicationId 'jp.nyuko.notification'
                   minSdk 26
                   targetSdk 35
-                  versionCode 3
-                  versionName '1.2'
+                  versionCode 4
+                  versionName '1.3'
               }
           }
           EOF
@@ -145,7 +145,7 @@ jobs:
                   if (!android.provider.Settings.canDrawOverlays(this)) {
                       android.content.Intent overlay = new android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:" + getPackageName()));
                       startActivity(overlay);
-                  } else if (!android.provider.Settings.Secure.getString(getContentResolver(), "enabled_notification_listeners").contains(getPackageName())) {
+                  } else if (!!String.valueOf(android.provider.Settings.Secure.getString(getContentResolver(), "enabled_notification_listeners")).contains(getPackageName())) {
                       startActivity(new android.content.Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
                   }
                   webView = new WebView(this);
@@ -288,9 +288,10 @@ jobs:
                   String title = String.valueOf(n.extras.getCharSequence(Notification.EXTRA_TITLE, ""));
                   String text = String.valueOf(n.extras.getCharSequence(Notification.EXTRA_TEXT, ""));
                   String bigText = String.valueOf(n.extras.getCharSequence(Notification.EXTRA_BIG_TEXT, ""));
-                  // ntfy may show the topic as the title; only react to the specific topic and message.
-                  if (!(title.contains(TOPIC) || text.contains(TOPIC) || bigText.contains(TOPIC))) return;
+                  // ntfy can replace the long topic with a user-defined display name.
+                  // Match the exact arrival phrase from ntfy, regardless of notification title.
                   if (!(text.contains("入庫しました") || bigText.contains("入庫しました") || title.contains("入庫しました"))) return;
+                  android.util.Log.i("Arrival", "ntfy arrival detected: " + title + " / " + text);
                   handler.post(this::showOverlay);
               }
 
