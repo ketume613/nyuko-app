@@ -14,7 +14,7 @@ $('room').value = savedRoom;
 async function notificationTopic(code) {
   const bytes = new TextEncoder().encode('nyuko-v1:' + code);
   const hash = await crypto.subtle.digest('SHA-256', bytes);
-  return 'nyuko-' + Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2,'0')).join('');
+  return 'nyuko-' + Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2,'0')).join('').slice(0, 48);
 }
 async function showTopic() {
   if (!room) return;
