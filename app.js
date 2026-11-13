@@ -11,6 +11,17 @@ const $ = id => document.getElementById(id);
 let db, room = '', role = '', unsubscribe = null, connecting = false, sending = false;
 const savedRoom = localStorage.getItem('nyuko.room') || '';
 $('room').value = savedRoom;
+async function notificationTopic(code) {
+  const bytes = new TextEncoder().encode('nyuko-v1:' + code);
+  const hash = await crypto.subtle.digest('SHA-256', bytes);
+  return 'nyuko-' + Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+async function showTopic() {
+  if (!room) return;
+  const topic = await notificationTopic(room);
+  $('topic').textContent = topic;
+  $('ntfySetup').hidden = false;
+}
 function status(message) { $('status').textContent = message; }
 function stopListening() { if (unsubscribe) { unsubscribe(); unsubscribe = null; } }
 function showNotice(timestamp) {
@@ -32,6 +43,7 @@ function selectRole(next) {
     return;
   }
   if (window.AndroidArrival) window.AndroidArrival.setReceiverRoom(room);
+  showTopic().catch(console.error);
   let initial = true, last = null;
   unsubscribe = db.onValue(db.ref(db.database, 'rooms/' + room + '/event'), snapshot => {
     const value = snapshot.val();
@@ -101,7 +113,20 @@ $('send').onclick = async () => {
     const timestamp = Date.now();
     const id = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : String(timestamp) + '-' + Math.random().toString(36).slice(2);
     await db.set(db.ref(db.database, 'rooms/' + room + '/event'), {id, timestamp});
-    $('sent').textContent = '送信完了：' + new Date(timestamp).toLocaleTimeString('ja-JP');
+    $('sent').textContent = '入庫データ送信完了。通知を送信中…';
+    try {
+      const topic = await notificationTopic(room);
+      const response = await fetch('https://ntfy.sh/' + topic, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain;charset=UTF-8', 'X-Title': encodeURIComponent('入庫通知'), 'X-Priority': '5', 'X-Tags': 'package'},
+        body: '入庫しました'
+      });
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      $('sent').textContent = '入庫・通知送信完了：' + new Date(timestamp).toLocaleTimeString('ja-JP');
+    } catch (notifyError) {
+      console.error(notifyError);
+      $('sent').textContent = '入庫データ送信済み。ただしバックグラウンド通知は送信失敗：' + (notifyError.message || '通信エラー');
+    }
   } catch (error) {
     console.error(error);
     $('sent').textContent = '送信エラー：' + (error.code || error.message || '通信を確認してください');
@@ -123,3 +148,9 @@ $('changeRole').onclick = () => {
   status('役割を選んでください');
 };
 if (savedRoom) connect();
+
+$('copyTopic').onclick = async () => {
+  const value = $('topic').textContent;
+  try { await navigator.clipboard.writeText(value); $('copyTopic').textContent = 'コピーしました'; }
+  catch(e) { $('copyTopic').textContent = '上の文字を長押ししてコピーしてください'; }
+};
