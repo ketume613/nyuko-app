@@ -80,8 +80,8 @@ jobs:
                   applicationId 'jp.nyuko.notification'
                   minSdk 26
                   targetSdk 35
-                  versionCode 2
-                  versionName '1.1'
+                  versionCode 3
+                  versionName '1.2'
               }
           }
           EOF
@@ -90,11 +90,15 @@ jobs:
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.INTERNET"/>
               <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+              <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
               <application
                   android:name=".ArrivalApplication"
                   android:label="入庫通知"
                   android:usesCleartextTraffic="false"
                   android:theme="@android:style/Theme.Material.Light.NoActionBar">
+                  <service android:name=".ArrivalNotificationListener" android:label="入庫通知の検知" android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" android:exported="false">
+                      <intent-filter><action android:name="android.service.notification.NotificationListenerService"/></intent-filter>
+                  </service>
                   <service android:name=".ArrivalMessagingService" android:exported="false">
                       <intent-filter><action android:name="com.google.firebase.MESSAGING_EVENT"/></intent-filter>
                   </service>
@@ -137,6 +141,12 @@ jobs:
                   super.onCreate(state);
                   if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != getPackageManager().PERMISSION_GRANTED) {
                       requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 100);
+                  }
+                  if (!android.provider.Settings.canDrawOverlays(this)) {
+                      android.content.Intent overlay = new android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:" + getPackageName()));
+                      startActivity(overlay);
+                  } else if (!android.provider.Settings.Secure.getString(getContentResolver(), "enabled_notification_listeners").contains(getPackageName())) {
+                      startActivity(new android.content.Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
                   }
                   webView = new WebView(this);
                   webView.setWebViewClient(new WebViewClient());
@@ -240,6 +250,99 @@ jobs:
                       .setCategory(android.app.Notification.CATEGORY_MESSAGE)
                       .build();
                   manager.notify((int)(System.currentTimeMillis() % Integer.MAX_VALUE), notification);
+              }
+          }
+          EOF
+
+          cat > android/app/src/main/java/jp/nyuko/notification/ArrivalNotificationListener.java <<'EOF'
+          package jp.nyuko.notification;
+
+          import android.app.Notification;
+          import android.content.Context;
+          import android.graphics.Color;
+          import android.graphics.PixelFormat;
+          import android.graphics.Typeface;
+          import android.os.Build;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.provider.Settings;
+          import android.service.notification.NotificationListenerService;
+          import android.service.notification.StatusBarNotification;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.view.WindowManager;
+          import android.widget.Button;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
+
+          public class ArrivalNotificationListener extends NotificationListenerService {
+              private static final String TOPIC = "nyuko-acfa47fc4a1f8d6dc2ddb2c0dae4c9fa7ea48bad4c239313";
+              private final Handler handler = new Handler(Looper.getMainLooper());
+              private View currentOverlay;
+              private WindowManager windowManager;
+
+              @Override public void onNotificationPosted(StatusBarNotification sbn) {
+                  if (!"io.heckel.ntfy".equals(sbn.getPackageName())) return;
+                  Notification n = sbn.getNotification();
+                  if (n == null || n.extras == null) return;
+                  String title = String.valueOf(n.extras.getCharSequence(Notification.EXTRA_TITLE, ""));
+                  String text = String.valueOf(n.extras.getCharSequence(Notification.EXTRA_TEXT, ""));
+                  String bigText = String.valueOf(n.extras.getCharSequence(Notification.EXTRA_BIG_TEXT, ""));
+                  // ntfy may show the topic as the title; only react to the specific topic and message.
+                  if (!(title.contains(TOPIC) || text.contains(TOPIC) || bigText.contains(TOPIC))) return;
+                  if (!(text.contains("入庫しました") || bigText.contains("入庫しました") || title.contains("入庫しました"))) return;
+                  handler.post(this::showOverlay);
+              }
+
+              private void showOverlay() {
+                  if (!Settings.canDrawOverlays(this)) return;
+                  if (windowManager == null) windowManager = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
+                  if (currentOverlay != null) {
+                      try { windowManager.removeView(currentOverlay); } catch (Exception ignored) {}
+                      currentOverlay = null;
+                  }
+                  LinearLayout layout = new LinearLayout(this);
+                  layout.setOrientation(LinearLayout.VERTICAL);
+                  layout.setGravity(Gravity.CENTER);
+                  layout.setPadding(32, 32, 32, 32);
+                  layout.setBackgroundColor(Color.rgb(7, 121, 63));
+                  TextView title = new TextView(this);
+                  title.setText("📦 入庫しました！");
+                  title.setTextColor(Color.WHITE);
+                  title.setTextSize(38);
+                  title.setTypeface(null, Typeface.BOLD);
+                  title.setGravity(Gravity.CENTER);
+                  layout.addView(title);
+                  Button dismiss = new Button(this);
+                  dismiss.setText("確認しました");
+                  dismiss.setTextSize(22);
+                  LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
+                  p.topMargin = 80;
+                  layout.addView(dismiss, p);
+                  WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                      WindowManager.LayoutParams.MATCH_PARENT,
+                      WindowManager.LayoutParams.MATCH_PARENT,
+                      Build.VERSION.SDK_INT >= 26 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : WindowManager.LayoutParams.TYPE_PHONE,
+                      WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
+                      PixelFormat.TRANSLUCENT);
+                  currentOverlay = layout;
+                  dismiss.setOnClickListener(v -> {
+                      if (currentOverlay == layout) {
+                          try { windowManager.removeView(layout); } catch (Exception ignored) {}
+                          currentOverlay = null;
+                      }
+                  });
+                  try { windowManager.addView(layout, params); }
+                  catch (Exception e) { android.util.Log.e("Arrival", "Overlay blocked", e); currentOverlay = null; }
+              }
+              @Override public void onDestroy() {
+                  handler.post(() -> {
+                      if (currentOverlay != null && windowManager != null) {
+                          try { windowManager.removeView(currentOverlay); } catch (Exception ignored) {}
+                          currentOverlay = null;
+                      }
+                  });
+                  super.onDestroy();
               }
           }
           EOF
