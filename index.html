@@ -7,55 +7,25 @@
 <link rel="manifest" href="manifest.webmanifest">
 <title>入庫通知</title>
 <style>
-body{font-family:system-ui,sans-serif;margin:0;background:#f2f5f8;color:#162432}
-main{max-width:540px;margin:auto;padding:24px}
-h1{font-size:25px}
-.panel{background:white;border-radius:18px;padding:24px;box-shadow:0 3px 16px #0001;margin:18px 0}
-button{width:100%;border:0;border-radius:14px;padding:20px;font-size:22px;font-weight:700;background:#176fc4;color:white;margin:10px 0}
-button.secondary{background:#e8edf2;color:#263747}
-input{padding:15px;font-size:18px;width:100%;box-sizing:border-box;border:1px solid #bcc9d4;border-radius:10px}
-#notice{display:none;position:fixed;inset:0;background:#137c43;color:white;z-index:10;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:20px}
-#notice strong{font-size:clamp(50px,13vw,100px)}
-#notice button{background:white;color:#137c43;max-width:400px}
-small{color:#657381}
-#notice small{color:white}
-[hidden]{display:none!important}
+*{box-sizing:border-box}body{font-family:system-ui,-apple-system,sans-serif;background:#f2f5f8;color:#162432;margin:0}
+main{max-width:520px;margin:0 auto;padding:32px 20px 48px;min-height:100dvh;display:flex;flex-direction:column;justify-content:center}
+h1{font-size:30px;margin:0 0 30px;text-align:center}
+.panel{background:#fff;padding:28px 22px;border-radius:22px;box-shadow:0 4px 22px #0000000d}
+button{width:100%;border:0;border-radius:17px;background:#176fc4;color:white;font-size:clamp(25px,7vw,35px);font-weight:800;min-height:160px;cursor:pointer;touch-action:manipulation}
+button:disabled{opacity:.6}
+#status{min-height:54px;text-align:center;font-size:17px;line-height:1.6;margin:24px 0 0;overflow-wrap:anywhere}
+.note{text-align:center;color:#657381;font-size:13px;margin-top:24px}
 </style>
 </head>
 <body>
 <main>
 <h1>📦 入庫通知</h1>
 <div class="panel">
-<label for="room">共有コード（2台で同じ文字）</label>
-<input id="room" placeholder="例：souko-12345" autocomplete="off">
-<p><small>テスト用の共有コードを入力してください。</small></p>
-<button id="connect">接続する</button>
-<p id="status" aria-live="polite">未接続</p>
+<button id="send" type="button">入庫しました</button>
+<p id="status" role="status" aria-live="polite">通知の送信準備ができました</p>
 </div>
-<div class="panel" id="sender" hidden>
-<h2>送信側</h2>
-<button id="send">入庫しました</button>
-<p id="sent"></p>
-</div>
-<div class="panel" id="receiver" hidden>
-<h2>受信側</h2>
-<p>接続中は入庫を受信すると画面いっぱいに表示します。</p>
-<button class="secondary" id="test">画面表示テスト</button>
-<p><small>アプリを開いている間に通知を表示します。別アプリ使用中の通知には追加の実装が必要です。</small></p>
-</div>
-<div class="panel" id="ntfySetup" hidden><h2>バックグラウンド通知（無料）</h2><p>受信側スマホにntfyアプリをインストールし、次のトピックを購読してください。</p><p id="topic" style="overflow-wrap:anywhere;font-size:13px;user-select:all"></p><button class="secondary" id="copyTopic">トピックをコピー</button><p><small>トピック名を他人に知らせないでください。ntfyの公開サーバーでは、トピックを知る人が通知を閲覧・送信できる場合があります。</small></p></div>
-<div class="panel" id="modebox" hidden>
-<h2>役割を選択</h2>
-<button id="asSender">送信側として使う</button>
-<button id="asReceiver" class="secondary">受信側として使う</button>
-</div>
-<div class="panel" id="settings"><button class="secondary" id="changeRole">送信側・受信側を切り替える</button></div>
+<p class="note">ボタンを押すと登録済みの受信スマホに通知します</p>
 </main>
-<div id="notice" role="alertdialog" aria-modal="true">
-<small id="time"></small>
-<strong>入庫済み</strong>
-<button id="ack">確認しました</button>
-</div>
-<script type="module" src="./app.js?v=20261113-ntfy3"></script>
+<script type="module" src="./app.js?v=20261113-onebutton1"></script>
 </body>
 </html>
