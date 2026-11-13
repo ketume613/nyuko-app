@@ -80,8 +80,8 @@ jobs:
                   applicationId 'jp.nyuko.notification'
                   minSdk 26
                   targetSdk 35
-                  versionCode 6
-                  versionName '1.5'
+                  versionCode 7
+                  versionName '1.6'
               }
           }
           EOF
@@ -194,11 +194,22 @@ jobs:
                   android.widget.Button refresh = new android.widget.Button(this);
                   refresh.setText("診断情報を更新");
                   root.addView(refresh);
+                  android.widget.Button fsiSettings = new android.widget.Button(this);
+                  fsiSettings.setText("ロック画面の全画面通知を許可");
+                  root.addView(fsiSettings);
+                  fsiSettings.setOnClickListener(v -> {
+                      if (android.os.Build.VERSION.SDK_INT >= 34) {
+                          android.content.Intent intent = new android.content.Intent(android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, android.net.Uri.parse("package:" + getPackageName()));
+                          try { startActivity(intent); } catch (Exception e) { android.util.Log.e("Arrival","Full screen permission settings",e); }
+                      }
+                  });
                   Runnable update = () -> {
                       boolean overlay = android.provider.Settings.canDrawOverlays(this);
                       boolean listener = String.valueOf(android.provider.Settings.Secure.getString(getContentResolver(), "enabled_notification_listeners")).contains(getPackageName());
                       String seen = getSharedPreferences("arrival_diagnostics",0).getString("last_ntfy","未検知");
-                      diagnostic.setText("重ねて表示: " + (overlay ? "許可" : "未許可") + " / 通知アクセス: " + (listener ? "許可" : "未許可") + " / ntfy: " + seen);
+                      android.app.NotificationManager nm = getSystemService(android.app.NotificationManager.class);
+                      boolean fsi = android.os.Build.VERSION.SDK_INT < 34 || nm.canUseFullScreenIntent();
+                      diagnostic.setText("重ねて表示: " + (overlay ? "許可" : "未許可") + " / 通知アクセス: " + (listener ? "許可" : "未許可") + " / 全画面通知: " + (fsi ? "許可" : "未許可") + " / ntfy: " + seen);
                   };
                   refresh.setOnClickListener(v -> update.run());
                   update.run();
