@@ -89,6 +89,7 @@ jobs:
               <uses-permission android:name="android.permission.INTERNET"/>
               <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
               <application
+                  android:name=".ArrivalApplication"
                   android:label="入庫通知"
                   android:usesCleartextTraffic="false"
                   android:theme="@android:style/Theme.Material.Light.NoActionBar">
@@ -132,14 +133,6 @@ jobs:
               @Override
               public void onCreate(Bundle state) {
                   super.onCreate(state);
-                  FirebaseOptions options = new FirebaseOptions.Builder()
-                      .setApplicationId("1:970608663097:web:12a6ff870ca16878298be8")
-                      .setApiKey("AIzaSyCLzuSbh1QOTeGdkHYAlm_sXSRiex-5iGw")
-                      .setProjectId("nyuko-app-f10b6")
-                      .setGcmSenderId("970608663097")
-                      .setDatabaseUrl("https://nyuko-app-f10b6-default-rtdb.firebaseio.com")
-                      .build();
-                  if (FirebaseApp.getApps(this).isEmpty()) FirebaseApp.initializeApp(this, options);
                   if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != getPackageManager().PERMISSION_GRANTED) {
                       requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 100);
                   }
@@ -185,6 +178,27 @@ jobs:
               protected void onDestroy() {
                   webView.destroy();
                   super.onDestroy();
+              }
+          }
+          EOF
+
+          cat > android/app/src/main/java/jp/nyuko/notification/ArrivalApplication.java <<'EOF'
+          package jp.nyuko.notification;
+          import android.app.Application;
+          import com.google.firebase.FirebaseApp;
+          import com.google.firebase.FirebaseOptions;
+          public class ArrivalApplication extends Application {
+              @Override public void onCreate() {
+                  super.onCreate();
+                  FirebaseOptions options = new FirebaseOptions.Builder()
+                      .setApplicationId("1:970608663097:web:12a6ff870ca16878298be8")
+                      .setApiKey("AIzaSyCLzuSbh1QOTeGdkHYAlm_sXSRiex-5iGw")
+                      .setProjectId("nyuko-app-f10b6")
+                      .setGcmSenderId("970608663097")
+                      .setDatabaseUrl("https://nyuko-app-f10b6-default-rtdb.firebaseio.com")
+                      .build();
+                  if (FirebaseApp.getApps(this).isEmpty()) FirebaseApp.initializeApp(this, options);
+
               }
           }
           EOF
