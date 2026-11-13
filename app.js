@@ -10,7 +10,6 @@ const firebaseConfig = {
 const $ = id => document.getElementById(id);
 let db, room = '', role = '', unsubscribe = null, connecting = false, sending = false;
 const savedRoom = localStorage.getItem('nyuko.room') || '';
-const savedRole = localStorage.getItem('nyuko.role') || '';
 $('room').value = savedRoom;
 function status(message) { $('status').textContent = message; }
 function stopListening() { if (unsubscribe) { unsubscribe(); unsubscribe = null; } }
@@ -76,7 +75,8 @@ async function connect() {
     $('receiver').hidden = true;
     stopListening();
     status('接続済み：役割を選んでください');
-    if (savedRole === 'sender' || savedRole === 'receiver') selectRole(savedRole);
+    const rememberedRole = localStorage.getItem('nyuko.role');
+    if (rememberedRole === 'sender' || rememberedRole === 'receiver') selectRole(rememberedRole);
   } catch (error) {
     console.error(error);
     status('接続エラー：' + (error.code || error.message || '通信を確認してください'));
