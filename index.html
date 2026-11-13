@@ -43,6 +43,7 @@ small{color:#657381}
 <button class="secondary" id="test">画面表示テスト</button>
 <p><small>アプリを開いている間に通知を表示します。別アプリ使用中の通知には追加の実装が必要です。</small></p>
 </div>
+<div class="panel" id="ntfySetup" hidden><h2>バックグラウンド通知（無料）</h2><p>受信側スマホにntfyアプリをインストールし、次のトピックを購読してください。</p><p id="topic" style="overflow-wrap:anywhere;font-size:13px;user-select:all"></p><button class="secondary" id="copyTopic">トピックをコピー</button><p><small>トピック名を他人に知らせないでください。ntfyの公開サーバーでは、トピックを知る人が通知を閲覧・送信できる場合があります。</small></p></div>
 <div class="panel" id="modebox" hidden>
 <h2>役割を選択</h2>
 <button id="asSender">送信側として使う</button>
@@ -55,6 +56,6 @@ small{color:#657381}
 <strong>入庫済み</strong>
 <button id="ack">確認しました</button>
 </div>
-<script type="module" src="./app.js?v=20261113-final1"></script>
+<script type="module" src="./app.js?v=20261113-ntfy1"></script>
 </body>
 </html>
