@@ -118,7 +118,7 @@ $('send').onclick = async () => {
       const topic = await notificationTopic(room);
       const response = await fetch('https://ntfy.sh/' + topic, {
         method: 'POST',
-        headers: {'Content-Type': 'text/plain;charset=UTF-8', 'X-Title': encodeURIComponent('入庫通知'), 'X-Priority': '5', 'X-Tags': 'package'},
+        headers: {'Content-Type': 'text/plain'},
         body: '入庫しました'
       });
       if (!response.ok) throw new Error('HTTP ' + response.status);
