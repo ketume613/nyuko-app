@@ -65,6 +65,11 @@ jobs:
               id 'com.android.application'
           }
 
+          dependencies {
+              implementation platform('com.google.firebase:firebase-bom:33.16.0')
+              implementation 'com.google.firebase:firebase-messaging'
+          }
+
           android {
               namespace 'jp.nyuko.notification'
               compileSdk 35
@@ -73,8 +78,8 @@ jobs:
                   applicationId 'jp.nyuko.notification'
                   minSdk 26
                   targetSdk 35
-                  versionCode 1
-                  versionName '1.0'
+                  versionCode 2
+                  versionName '1.1'
               }
           }
           EOF
@@ -82,10 +87,14 @@ jobs:
           cat > android/app/src/main/AndroidManifest.xml <<'EOF'
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
               <application
                   android:label="入庫通知"
                   android:usesCleartextTraffic="false"
                   android:theme="@android:style/Theme.Material.Light.NoActionBar">
+                  <service android:name=".ArrivalMessagingService" android:exported="false">
+                      <intent-filter><action android:name="com.google.firebase.MESSAGING_EVENT"/></intent-filter>
+                  </service>
                   <activity
                       android:name=".MainActivity"
                       android:exported="true">
@@ -101,42 +110,119 @@ jobs:
           cat > android/app/src/main/java/jp/nyuko/notification/MainActivity.java <<'EOF'
           package jp.nyuko.notification;
 
+          import android.Manifest;
           import android.app.Activity;
+          import android.os.Build;
           import android.os.Bundle;
+          import android.webkit.JavascriptInterface;
           import android.webkit.WebView;
           import android.webkit.WebViewClient;
           import android.webkit.WebChromeClient;
           import android.webkit.WebSettings;
+          import com.google.firebase.FirebaseApp;
+          import com.google.firebase.FirebaseOptions;
+          import com.google.firebase.messaging.FirebaseMessaging;
+          import java.nio.charset.StandardCharsets;
+          import java.security.MessageDigest;
 
           public class MainActivity extends Activity {
               private WebView webView;
+              private String subscribedTopic = "";
 
               @Override
               public void onCreate(Bundle state) {
                   super.onCreate(state);
+                  FirebaseOptions options = new FirebaseOptions.Builder()
+                      .setApplicationId("1:970608663097:web:12a6ff870ca16878298be8")
+                      .setApiKey("AIzaSyCLzuSbh1QOTeGdkHYAlm_sXSRiex-5iGw")
+                      .setProjectId("nyuko-app-f10b6")
+                      .setGcmSenderId("970608663097")
+                      .setDatabaseUrl("https://nyuko-app-f10b6-default-rtdb.firebaseio.com")
+                      .build();
+                  if (FirebaseApp.getApps(this).isEmpty()) FirebaseApp.initializeApp(this, options);
+                  if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != getPackageManager().PERMISSION_GRANTED) {
+                      requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 100);
+                  }
                   webView = new WebView(this);
                   webView.setWebViewClient(new WebViewClient());
                   webView.setWebChromeClient(new WebChromeClient());
                   WebSettings settings = webView.getSettings();
                   settings.setJavaScriptEnabled(true);
                   settings.setDomStorageEnabled(true);
+                  webView.addJavascriptInterface(new Object() {
+                      @JavascriptInterface
+                      public void setReceiverRoom(String room) {
+                          if (room == null || !room.matches("[a-zA-Z0-9_-]{12,80}")) return;
+                          try {
+                              byte[] hash = MessageDigest.getInstance("SHA-256").digest(room.getBytes(StandardCharsets.UTF_8));
+                              StringBuilder sb = new StringBuilder("arrival_");
+                              for (byte b : hash) sb.append(String.format("%02x", b & 0xff));
+                              String next = sb.toString();
+                              String old = getPreferences(0).getString("topic", "");
+                              if (!old.isEmpty() && !old.equals(next)) FirebaseMessaging.getInstance().unsubscribeFromTopic(old);
+                              FirebaseMessaging.getInstance().subscribeToTopic(next);
+                              getPreferences(0).edit().putString("topic", next).apply();
+                          } catch (Exception e) { android.util.Log.e("Arrival", "Topic error", e); }
+                      }
+                      @JavascriptInterface
+                      public void disableReceiver() {
+                          String old = getPreferences(0).getString("topic", "");
+                          if (!old.isEmpty()) FirebaseMessaging.getInstance().unsubscribeFromTopic(old);
+                          getPreferences(0).edit().remove("topic").apply();
+                      }
+                  }, "AndroidArrival");
                   setContentView(webView);
                   webView.loadUrl("https://ketume613.github.io/nyuko-app/");
               }
 
               @Override
               public void onBackPressed() {
-                  if (webView.canGoBack()) {
-                      webView.goBack();
-                  } else {
-                      super.onBackPressed();
-                  }
+                  if (webView.canGoBack()) webView.goBack();
+                  else super.onBackPressed();
               }
 
               @Override
               protected void onDestroy() {
                   webView.destroy();
                   super.onDestroy();
+              }
+          }
+          EOF
+
+          cat > android/app/src/main/java/jp/nyuko/notification/ArrivalMessagingService.java <<'EOF'
+          package jp.nyuko.notification;
+
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.PendingIntent;
+          import android.content.Intent;
+          import android.os.Build;
+          import androidx.annotation.NonNull;
+          import com.google.firebase.messaging.FirebaseMessagingService;
+          import com.google.firebase.messaging.RemoteMessage;
+
+          public class ArrivalMessagingService extends FirebaseMessagingService {
+              @Override
+              public void onMessageReceived(@NonNull RemoteMessage message) {
+                  NotificationManager manager = getSystemService(NotificationManager.class);
+                  String channelId = "arrival_alerts_v1";
+                  if (Build.VERSION.SDK_INT >= 26) {
+                      NotificationChannel channel = new NotificationChannel(channelId, "入庫通知", NotificationManager.IMPORTANCE_HIGH);
+                      channel.enableVibration(true);
+                      manager.createNotificationChannel(channel);
+                  }
+                  Intent intent = new Intent(this, MainActivity.class);
+                  intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                  PendingIntent pending = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                  android.app.Notification notification = new android.app.Notification.Builder(this, channelId)
+                      .setSmallIcon(android.R.drawable.stat_notify_more)
+                      .setContentTitle("📦 入庫しました")
+                      .setContentText("入庫通知を確認してください")
+                      .setAutoCancel(true)
+                      .setContentIntent(pending)
+                      .setCategory(android.app.Notification.CATEGORY_MESSAGE)
+                      .build();
+                  manager.notify((int)(System.currentTimeMillis() % Integer.MAX_VALUE), notification);
               }
           }
           EOF
