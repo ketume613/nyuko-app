@@ -80,8 +80,8 @@ jobs:
                   applicationId 'jp.nyuko.notification'
                   minSdk 26
                   targetSdk 35
-                  versionCode 4
-                  versionName '1.3'
+                  versionCode 5
+                  versionName '1.4'
               }
           }
           EOF
@@ -176,7 +176,31 @@ jobs:
                           getPreferences(0).edit().remove("topic").apply();
                       }
                   }, "AndroidArrival");
-                  setContentView(webView);
+                  android.widget.LinearLayout root = new android.widget.LinearLayout(this);
+                  root.setOrientation(1);
+                  android.widget.TextView diagnostic = new android.widget.TextView(this);
+                  diagnostic.setPadding(20,16,20,12);
+                  root.addView(diagnostic);
+                  android.widget.Button test = new android.widget.Button(this);
+                  test.setText("全画面テスト");
+                  root.addView(test);
+                  test.setOnClickListener(v -> {
+                      if (android.provider.Settings.canDrawOverlays(this)) OverlayTester.show(this);
+                      else startActivity(new android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:" + getPackageName())));
+                  });
+                  android.widget.Button refresh = new android.widget.Button(this);
+                  refresh.setText("診断情報を更新");
+                  root.addView(refresh);
+                  Runnable update = () -> {
+                      boolean overlay = android.provider.Settings.canDrawOverlays(this);
+                      boolean listener = String.valueOf(android.provider.Settings.Secure.getString(getContentResolver(), "enabled_notification_listeners")).contains(getPackageName());
+                      String seen = getSharedPreferences("arrival_diagnostics",0).getString("last_ntfy","未検知");
+                      diagnostic.setText("重ねて表示: " + (overlay ? "許可" : "未許可") + " / 通知アクセス: " + (listener ? "許可" : "未許可") + " / ntfy: " + seen);
+                  };
+                  refresh.setOnClickListener(v -> update.run());
+                  update.run();
+                  root.addView(webView,new android.widget.LinearLayout.LayoutParams(-1,0,1));
+                  setContentView(root);
                   webView.loadUrl("https://ketume613.github.io/nyuko-app/");
               }
 
@@ -283,6 +307,7 @@ jobs:
 
               @Override public void onNotificationPosted(StatusBarNotification sbn) {
                   if (!"io.heckel.ntfy".equals(sbn.getPackageName())) return;
+                  getSharedPreferences("arrival_diagnostics",0).edit().putString("last_ntfy","ntfy検知 " + System.currentTimeMillis()).apply();
                   Notification n = sbn.getNotification();
                   if (n == null || n.extras == null) return;
                   String title = String.valueOf(n.extras.getCharSequence(Notification.EXTRA_TITLE, ""));
@@ -292,7 +317,8 @@ jobs:
                   // Match the exact arrival phrase from ntfy, regardless of notification title.
                   if (!(text.contains("入庫しました") || bigText.contains("入庫しました") || title.contains("入庫しました"))) return;
                   android.util.Log.i("Arrival", "ntfy arrival detected: " + title + " / " + text);
-                  handler.post(this::showOverlay);
+                  getSharedPreferences("arrival_diagnostics",0).edit().putString("last_ntfy","入庫検知 " + System.currentTimeMillis()).apply();
+                  handler.post(() -> OverlayTester.show(this));
               }
 
               private void showOverlay() {
@@ -344,6 +370,51 @@ jobs:
                       }
                   });
                   super.onDestroy();
+              }
+          }
+          EOF
+
+          cat > android/app/src/main/java/jp/nyuko/notification/OverlayTester.java <<'EOF'
+          package jp.nyuko.notification;
+          import android.content.Context;
+          import android.graphics.Color;
+          import android.graphics.PixelFormat;
+          import android.graphics.Typeface;
+          import android.provider.Settings;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.view.WindowManager;
+          import android.widget.Button;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
+          public class OverlayTester {
+              private static View active;
+              public static void show(Context context) {
+                  if (!Settings.canDrawOverlays(context)) return;
+                  WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+                  if (active != null) { try { wm.removeView(active); } catch (Exception ignored) {} active = null; }
+                  LinearLayout layout = new LinearLayout(context);
+                  layout.setOrientation(1);
+                  layout.setGravity(Gravity.CENTER);
+                  layout.setPadding(28,28,28,28);
+                  layout.setBackgroundColor(Color.rgb(7,121,63));
+                  TextView title = new TextView(context);
+                  title.setText("📦 入庫しました！");
+                  title.setTextSize(38);
+                  title.setTypeface(null,Typeface.BOLD);
+                  title.setTextColor(Color.WHITE);
+                  title.setGravity(Gravity.CENTER);
+                  layout.addView(title);
+                  Button close = new Button(context);
+                  close.setText("確認しました");
+                  close.setTextSize(22);
+                  LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1,-2);
+                  p.topMargin = 70;
+                  layout.addView(close,p);
+                  WindowManager.LayoutParams params = new WindowManager.LayoutParams(-1,-1,WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,PixelFormat.TRANSLUCENT);
+                  close.setOnClickListener(v -> { try { wm.removeView(layout); } catch (Exception ignored) {} if (active == layout) active = null; });
+                  try { wm.addView(layout,params); active = layout; }
+                  catch (Exception e) { android.util.Log.e("Arrival","Overlay blocked",e); }
               }
           }
           EOF
