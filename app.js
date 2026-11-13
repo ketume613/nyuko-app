@@ -121,7 +121,10 @@ $('send').onclick = async () => {
         headers: {'Content-Type': 'text/plain'},
         body: '入庫しました'
       });
-      if (!response.ok) throw new Error('HTTP ' + response.status);
+      if (!response.ok) {
+        const details = (await response.text()).slice(0, 180);
+        throw new Error('HTTP ' + response.status + ' / topic=' + topic.length + '文字 / ' + details);
+      }
       $('sent').textContent = '入庫・通知送信完了：' + new Date(timestamp).toLocaleTimeString('ja-JP');
     } catch (notifyError) {
       console.error(notifyError);
