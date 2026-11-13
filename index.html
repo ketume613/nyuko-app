@@ -41,19 +41,20 @@ small{color:#657381}
 <h2>受信側</h2>
 <p>接続中は入庫を受信すると画面いっぱいに表示します。</p>
 <button class="secondary" id="test">画面表示テスト</button>
-<p><small>別アプリを使用中の通知には、追加の実装が必要です。</small></p>
+<p><small>アプリを開いている間に通知を表示します。別アプリ使用中の通知には追加の実装が必要です。</small></p>
 </div>
 <div class="panel" id="modebox" hidden>
 <h2>役割を選択</h2>
 <button id="asSender">送信側として使う</button>
 <button id="asReceiver" class="secondary">受信側として使う</button>
 </div>
+<div class="panel" id="settings"><button class="secondary" id="changeRole">送信側・受信側を切り替える</button></div>
 </main>
 <div id="notice" role="alertdialog" aria-modal="true">
 <small id="time"></small>
 <strong>入庫済み</strong>
 <button id="ack">確認しました</button>
 </div>
-<script type="module" src="./app.js?v=5"></script>
+<script type="module" src="./app.js?v=20261113-final1"></script>
 </body>
 </html>
