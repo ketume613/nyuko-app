@@ -27,7 +27,11 @@ function selectRole(next) {
   $('sender').hidden = role !== 'sender';
   $('receiver').hidden = role !== 'receiver';
   status(role === 'sender' ? '送信側：接続済み' : '受信側：接続中…');
-  if (role !== 'receiver') return;
+  if (role !== 'receiver') {
+    if (window.AndroidArrival) window.AndroidArrival.disableReceiver();
+    return;
+  }
+  if (window.AndroidArrival) window.AndroidArrival.setReceiverRoom(room);
   let initial = true, last = null;
   unsubscribe = db.onValue(db.ref(db.database, 'rooms/' + room + '/event'), snapshot => {
     const value = snapshot.val();
@@ -110,6 +114,7 @@ $('test').onclick = () => showNotice(Date.now());
 $('ack').onclick = () => { $('notice').style.display = 'none'; status('受信側：通知待ち（確認済み）'); };
 $('changeRole').onclick = () => {
   stopListening();
+  if (window.AndroidArrival) window.AndroidArrival.disableReceiver();
   localStorage.removeItem('nyuko.role');
   role = '';
   $('sender').hidden = true;
